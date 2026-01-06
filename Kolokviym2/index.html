@@ -1,0 +1,124 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>My Kawaii To-Do ✨</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+            color: #5d4037;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 30px;
+            box-shadow: 0 10px 30px rgba(255, 105, 180, 0.3);
+            width: 450px;
+            border: 4px solid #f8bbd0;
+        }
+        h2 { text-align: center; color: #ec407a; font-size: 2em; text-shadow: 1px 1px 2px #fff; }
+        input {
+            width: calc(100% - 24px);
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 20px;
+            border: 2px solid #f48fb1;
+            background: #fffafa;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            background: #f06292;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1.1em;
+            box-shadow: 0 4px #ad1457;
+            transition: 0.2s;
+        }
+        button:hover { background: #f48fb1; transform: translateY(-2px); }
+        button:active { transform: translateY(2px); box-shadow: 0 2px #ad1457; }
+        .task-card {
+            background: white;
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 20px;
+            border: 2px dashed #ce93d8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .done { text-decoration: line-through; color: #d1d1d1; }
+        .btn-small { width: auto; padding: 5px 12px; font-size: 14px; background: #ce93d8; box-shadow: 0 2px #7b1fa2; cursor: pointer; border: none; color: white; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Tasks List 🎀</h2>
+        <input type="text" id="title" placeholder="Название задачи...">
+        <input type="text" id="desc" placeholder="Описание задачи...">
+        <button onclick="addTask()">Добавить котика 🐾</button>
+        <div id="taskList"></div>
+    </div>
+
+    <script>
+        const API = "/tasks";
+
+        async function loadTasks() {
+            try {
+                const res = await fetch(API);
+                if (!res.ok) throw new Error("Ошибка сети");
+                const data = await res.json();
+                
+                const list = document.getElementById('taskList');
+                list.innerHTML = '';
+                
+                data.forEach(t => {
+                    list.innerHTML += `
+                        <div class="task-card">
+                            <div class="${t.status === 'done' ? 'done' : ''}">
+                                <b>${t.title}</b><br>
+                                <small>${t.description}</small>
+                            </div>
+                            <button class="btn-small" onclick="deleteTask(${t.id})">🌸 Удалить</button>
+                        </div>`;
+                });
+            } catch (e) { console.log("Ой! Сервер не отвечает", e); }
+        }
+
+        async function addTask() {
+            const titleInput = document.getElementById('title');
+            const descInput = document.getElementById('desc');
+            
+            if(!titleInput.value) return alert("Введите название!");
+
+            await fetch(API, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    title: titleInput.value, 
+                    description: descInput.value, 
+                    status: "todo" 
+                })
+            });
+            titleInput.value = '';
+            descInput.value = '';
+            loadTasks();
+        }
+
+        async function deleteTask(id) {
+            await fetch(`${API}/${id}`, { method: 'DELETE' });
+            loadTasks();
+        }
+
+        loadTasks();
+    </script>
+</body>
+</html>
