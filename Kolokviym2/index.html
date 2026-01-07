@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -17,19 +17,20 @@
             padding: 30px;
             border-radius: 30px;
             box-shadow: 0 10px 30px rgba(255, 105, 180, 0.3);
-            width: 450px;
+            width: 500px;
             border: 4px solid #f8bbd0;
         }
         h2 { text-align: center; color: #ec407a; font-size: 2em; text-shadow: 1px 1px 2px #fff; }
         input {
-            width: calc(100% - 24px);
+            width: calc(100% - 28px);
             padding: 12px;
             margin: 8px 0;
             border-radius: 20px;
             border: 2px solid #f48fb1;
             background: #fffafa;
+            outline: none;
         }
-        button {
+        .main-btn {
             width: 100%;
             padding: 15px;
             background: #f06292;
@@ -40,9 +41,10 @@
             font-size: 1.1em;
             box-shadow: 0 4px #ad1457;
             transition: 0.2s;
+            margin-bottom: 20px;
         }
-        button:hover { background: #f48fb1; transform: translateY(-2px); }
-        button:active { transform: translateY(2px); box-shadow: 0 2px #ad1457; }
+        .main-btn:hover { background: #f48fb1; transform: translateY(-2px); }
+        
         .task-card {
             background: white;
             margin-top: 15px;
@@ -50,49 +52,77 @@
             border-radius: 20px;
             border: 2px dashed #ce93d8;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            flex-direction: column;
             animation: fadeIn 0.5s;
         }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .done { text-decoration: line-through; color: #d1d1d1; }
-        .btn-small { width: auto; padding: 5px 12px; font-size: 14px; background: #ce93d8; box-shadow: 0 2px #7b1fa2; cursor: pointer; border: none; color: white; border-radius: 10px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .task-info.done { text-decoration: line-through; color: #b0bec5; }
+        .task-status { font-size: 0.8em; color: #f06292; font-weight: bold; }
+        
+        .actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .btn-small { 
+            padding: 6px 12px; 
+            font-size: 13px; 
+            border: none; 
+            color: white; 
+            border-radius: 12px; 
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-delete { background: #ef5350; box-shadow: 0 2px #c62828; }
+        .btn-status { background: #66bb6a; box-shadow: 0 2px #2e7d32; }
+        .btn-small:hover { opacity: 0.8; transform: scale(1.05); }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>Tasks List 🎀</h2>
-        <input type="text" id="title" placeholder="Название задачи...">
-        <input type="text" id="desc" placeholder="Описание задачи...">
-        <button onclick="addTask()">Добавить котика 🐾</button>
+        <input type="text" id="title" placeholder="Название задачи (например, Купить молоко)...">
+        <input type="text" id="desc" placeholder="Описание (обязательно 3.2% жирности)...">
+        <button class="main-btn" onclick="addTask()">Добавить котика 🐾</button>
         <div id="taskList"></div>
     </div>
 
     <script>
         const API = "/tasks";
 
+        // Получение списка задач (GET)
         async function loadTasks() {
             try {
                 const res = await fetch(API);
-                if (!res.ok) throw new Error("Ошибка сети");
+                if (!res.ok) throw new Error("Ошибка сервера");
                 const data = await res.json();
                 
                 const list = document.getElementById('taskList');
                 list.innerHTML = '';
                 
                 data.forEach(t => {
+                    const isDone = t.status === 'done';
                     list.innerHTML += `
                         <div class="task-card">
-                            <div class="${t.status === 'done' ? 'done' : ''}">
+                            <div class="task-info ${isDone ? 'done' : ''}">
+                                <span class="task-status">[${t.status}]</span><br>
                                 <b>${t.title}</b><br>
-                                <small>${t.description}</small>
+                                <small>${t.description || 'Нет описания'}</small>
                             </div>
-                            <button class="btn-small" onclick="deleteTask(${t.id})">🌸 Удалить</button>
+                            <div class="actions">
+                                <button class="btn-small btn-status" onclick="toggleStatus(${t.id}, '${t.status}')">
+                                    ${isDone ? '🐾 Вернуть' : '✨ Готово'}
+                                </button>
+                                <button class="btn-small btn-delete" onclick="deleteTask(${t.id})">🌸 Удалить</button>
+                            </div>
                         </div>`;
                 });
-            } catch (e) { console.log("Ой! Сервер не отвечает", e); }
+            } catch (e) { console.error("Ошибка при загрузке:", e); }
         }
 
+        // Создание задачи (POST)
         async function addTask() {
             const titleInput = document.getElementById('title');
             const descInput = document.getElementById('desc');
@@ -113,11 +143,25 @@
             loadTasks();
         }
 
+        // Обновление статуса (PATCH)
+        async function toggleStatus(id, currentStatus) {
+            const newStatus = currentStatus === 'done' ? 'todo' : 'done';
+            await fetch(`${API}/${id}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ status: newStatus })
+            });
+            loadTasks();
+        }
+
+        // Удаление задачи (DELETE)
         async function deleteTask(id) {
+            if(!confirm("Удалить эту лапку?")) return;
             await fetch(`${API}/${id}`, { method: 'DELETE' });
             loadTasks();
         }
 
+        // Первая загрузка
         loadTasks();
     </script>
 </body>
