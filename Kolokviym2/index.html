@@ -2,167 +2,70 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>My Kawaii To-Do ✨</title>
+    <title>Kawaii Tasks ✨</title>
     <style>
-        body {
-            background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
-            font-family: 'Comic Sans MS', cursive, sans-serif;
-            display: flex;
-            justify-content: center;
-            padding: 40px;
-            color: #5d4037;
-        }
-        .container {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 30px;
-            border-radius: 30px;
-            box-shadow: 0 10px 30px rgba(255, 105, 180, 0.3);
-            width: 500px;
-            border: 4px solid #f8bbd0;
-        }
-        h2 { text-align: center; color: #ec407a; font-size: 2em; text-shadow: 1px 1px 2px #fff; }
-        input {
-            width: calc(100% - 28px);
-            padding: 12px;
-            margin: 8px 0;
-            border-radius: 20px;
-            border: 2px solid #f48fb1;
-            background: #fffafa;
-            outline: none;
-        }
-        .main-btn {
-            width: 100%;
-            padding: 15px;
-            background: #f06292;
-            color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 1.1em;
-            box-shadow: 0 4px #ad1457;
-            transition: 0.2s;
-            margin-bottom: 20px;
-        }
-        .main-btn:hover { background: #f48fb1; transform: translateY(-2px); }
-        
-        .task-card {
-            background: white;
-            margin-top: 15px;
-            padding: 15px;
-            border-radius: 20px;
-            border: 2px dashed #ce93d8;
-            display: flex;
-            flex-direction: column;
-            animation: fadeIn 0.5s;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .task-info.done { text-decoration: line-through; color: #b0bec5; }
-        .task-status { font-size: 0.8em; color: #f06292; font-weight: bold; }
-        
-        .actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .btn-small { 
-            padding: 6px 12px; 
-            font-size: 13px; 
-            border: none; 
-            color: white; 
-            border-radius: 12px; 
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        .btn-delete { background: #ef5350; box-shadow: 0 2px #c62828; }
-        .btn-status { background: #66bb6a; box-shadow: 0 2px #2e7d32; }
-        .btn-small:hover { opacity: 0.8; transform: scale(1.05); }
+        body { background: #fce4ec; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; padding: 50px; }
+        .app { background: white; padding: 30px; border-radius: 25px; box-shadow: 0 10px 25px rgba(236, 64, 122, 0.2); width: 400px; }
+        h2 { color: #d81b60; text-align: center; }
+        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 15px; border: 1px solid #f8bbd0; box-sizing: border-box; }
+        .add-btn { width: 100%; background: #ec407a; color: white; border: none; padding: 12px; border-radius: 20px; cursor: pointer; margin-top: 10px; font-weight: bold; }
+        .task { border-bottom: 1px dashed #f8bbd0; padding: 15px 0; display: flex; justify-content: space-between; align-items: center; }
+        .done { text-decoration: line-through; color: #bdbdbd; }
+        .controls button { border: none; padding: 5px 10px; border-radius: 8px; cursor: pointer; color: white; margin-left: 5px; }
+        .done-btn { background: #66bb6a; }
+        .del-btn { background: #ef5350; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="app">
         <h2>Tasks List 🎀</h2>
-        <input type="text" id="title" placeholder="Название задачи (например, Купить молоко)...">
-        <input type="text" id="desc" placeholder="Описание (обязательно 3.2% жирности)...">
-        <button class="main-btn" onclick="addTask()">Добавить котика 🐾</button>
-        <div id="taskList"></div>
+        <input id="t" placeholder="Что нужно сделать?">
+        <input id="d" placeholder="Описание">
+        <button class="add-btn" onclick="add()">Добавить котика 🐾</button>
+        <div id="list"></div>
     </div>
-
     <script>
         const API = "/tasks";
-
-        // Получение списка задач (GET)
-        async function loadTasks() {
-            try {
-                const res = await fetch(API);
-                if (!res.ok) throw new Error("Ошибка сервера");
-                const data = await res.json();
-                
-                const list = document.getElementById('taskList');
-                list.innerHTML = '';
-                
-                data.forEach(t => {
-                    const isDone = t.status === 'done';
-                    list.innerHTML += `
-                        <div class="task-card">
-                            <div class="task-info ${isDone ? 'done' : ''}">
-                                <span class="task-status">[${t.status}]</span><br>
-                                <b>${t.title}</b><br>
-                                <small>${t.description || 'Нет описания'}</small>
-                            </div>
-                            <div class="actions">
-                                <button class="btn-small btn-status" onclick="toggleStatus(${t.id}, '${t.status}')">
-                                    ${isDone ? '🐾 Вернуть' : '✨ Готово'}
-                                </button>
-                                <button class="btn-small btn-delete" onclick="deleteTask(${t.id})">🌸 Удалить</button>
-                            </div>
-                        </div>`;
-                });
-            } catch (e) { console.error("Ошибка при загрузке:", e); }
+        async function load() {
+            const r = await fetch(API);
+            const tasks = await r.json();
+            document.getElementById('list').innerHTML = tasks.map(t => `
+                <div class="task">
+                    <div class="${t.status === 'done' ? 'done' : ''}">
+                        <b>${t.title}</b><br><small>${t.description}</small>
+                    </div>
+                    <div class="controls">
+                        <button class="done-btn" onclick="upd(${t.id}, '${t.status}')">✨</button>
+                        <button class="del-btn" onclick="del(${t.id})">🌸</button>
+                    </div>
+                </div>
+            `).join('');
         }
-
-        // Создание задачи (POST)
-        async function addTask() {
-            const titleInput = document.getElementById('title');
-            const descInput = document.getElementById('desc');
-            
-            if(!titleInput.value) return alert("Введите название!");
-
+        async function add() {
+            const title = document.getElementById('t').value;
+            if(!title) return alert("Введите название!");
             await fetch(API, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    title: titleInput.value, 
-                    description: descInput.value, 
-                    status: "todo" 
-                })
+                body: JSON.stringify({title, description: document.getElementById('d').value})
             });
-            titleInput.value = '';
-            descInput.value = '';
-            loadTasks();
+            document.getElementById('t').value = '';
+            document.getElementById('d').value = '';
+            load();
         }
-
-        // Обновление статуса (PATCH)
-        async function toggleStatus(id, currentStatus) {
-            const newStatus = currentStatus === 'done' ? 'todo' : 'done';
+        async function upd(id, s) {
             await fetch(`${API}/${id}`, {
                 method: 'PATCH',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ status: newStatus })
+                body: JSON.stringify({status: s === 'done' ? 'todo' : 'done'})
             });
-            loadTasks();
+            load();
         }
-
-        // Удаление задачи (DELETE)
-        async function deleteTask(id) {
-            if(!confirm("Удалить эту лапку?")) return;
+        async function del(id) {
             await fetch(`${API}/${id}`, { method: 'DELETE' });
-            loadTasks();
+            load();
         }
-
-        // Первая загрузка
-        loadTasks();
+        load();
     </script>
 </body>
 </html>
