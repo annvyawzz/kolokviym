@@ -1,4 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
+// Отключаем предупреждения сторонних библиотек (type.6)
+#pragma warning(disable : 26495) 
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -21,8 +24,10 @@ struct Task {
     std::string description;
     std::string status = "todo";
 };
-
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Task, id, title, description, status)
+
+std::vector<Task> task_cache;
+bool cache_valid = false;
 
 class Database {
     sqlite3* db;
@@ -90,11 +95,13 @@ void log_request(const Request& req, const Response& res) {
         << req.method << " " << req.path << " -> " << res.status << std::endl;
 }
 
-int main() {
+int main() 
+{
     system("chcp 65001");
     Database db("todo_list.db");
-    Server svr;
-    svr.set_logger(log_request);
+   setlocale(LC_ALL, "RUS");
+    auto svr = std::make_unique<Server>();
+    svr->set_logger(log_request);
 
     auto enable_cors = [](Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
@@ -102,7 +109,7 @@ int main() {
         res.set_header("Access-Control-Allow-Headers", "Content-Type");
         };
 
-    svr.Get("/", [](const Request&, Response& res) {
+    svr->Get("/", [](const Request&, Response& res) {
         std::ifstream f("index.html");
         if (f) {
             std::stringstream ss; ss << f.rdbuf();
@@ -114,48 +121,60 @@ int main() {
         }
         });
 
-    svr.Get("/tasks", [&](const Request&, Response& res) {
-        res.set_content(json(db.getAll()).dump(), "application/json");
+    svr->Get("/tasks", [&](const Request&, Response& res) {
+        if (!cache_valid) {
+            task_cache = db.getAll();
+            cache_valid = true;
+            std::cout << "[CACHE] Данные загружены из базы" << std::endl;
+        }
+        else {
+            std::cout << "[CACHE] Данные выданы из кэша" << std::endl;
+        }
+        res.set_content(json(task_cache).dump(), "application/json");
         enable_cors(res);
         });
 
-    svr.Post("/tasks", [&](const Request& req, Response& res) {
+    svr->Post("/tasks", [&](const Request& req, Response& res) {
         try {
             auto body = json::parse(req.body);
-            if (body.at("title").get<std::string>().empty()) {
-                res.status = 400; // Bad Request
-                return;
-            }
+            if (body.at("title").get<std::string>().empty()) { res.status = 400; return; }
             Task t{ 0, body.at("title"), body.value("description", ""), "todo" };
             db.addTask(t);
-            res.status = 201; // Created
+            cache_valid = false; // СБРОС КЕША
+            res.status = 201;
             res.set_content(json(t).dump(), "application/json");
         }
         catch (...) { res.status = 400; }
         enable_cors(res);
         });
 
-    svr.Patch(R"(/tasks/(\d+))", [&](const Request& req, Response& res) {
+    svr->Patch(R"(/tasks/(\d+))", [&](const Request& req, Response& res) {
         int id = std::stoi(req.matches[1]);
         auto body = json::parse(req.body);
-        if (db.updateStatus(id, body.at("status"))) res.status = 200;
+        if (db.updateStatus(id, body.at("status"))) {
+            res.status = 200;
+            cache_valid = false; // СБРОС КЕША
+        }
         else res.status = 404;
         enable_cors(res);
         });
 
-    svr.Delete(R"(/tasks/(\d+))", [&](const Request& req, Response& res) {
+    svr->Delete(R"(/tasks/(\d+))", [&](const Request& req, Response& res) {
         int id = std::stoi(req.matches[1]);
-        if (db.deleteTask(id)) res.status = 200;
+        if (db.deleteTask(id)) {
+            res.status = 200;
+            cache_valid = false; // СБРОС КЕША
+        }
         else res.status = 404;
         enable_cors(res);
         });
 
-    svr.Options(R"(.*)", [&](const Request&, Response& res) {
+    svr->Options(R"(.*)", [&](const Request&, Response& res) {
         enable_cors(res);
         res.status = 204;
         });
 
-    std::cout << "Сервер запущен: http://localhost:8081" << std::endl;
-    svr.listen("0.0.0.0", 8081);
+    std::cout << "Сервер запущен на порту 8081..." << std::endl;
+    svr->listen("0.0.0.0", 8081);
     return 0;
 }
