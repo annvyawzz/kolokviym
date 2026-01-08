@@ -5,13 +5,36 @@
     <title>Kawaii Tasks ✨</title>
     <style>
         body { background: #fce4ec; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; padding: 50px; }
-        .app { background: white; padding: 30px; border-radius: 25px; box-shadow: 0 10px 25px rgba(236, 64, 122, 0.2); width: 400px; }
+        .app { background: white; padding: 30px; border-radius: 25px; box-shadow: 0 10px 25px rgba(236,64,122,0.2); width: 420px; }
         h2 { color: #d81b60; text-align: center; }
-        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 15px; border: 1px solid #f8bbd0; box-sizing: border-box; }
-        .add-btn { width: 100%; background: #ec407a; color: white; border: none; padding: 12px; border-radius: 20px; cursor: pointer; margin-top: 10px; font-weight: bold; }
-        .task { border-bottom: 1px dashed #f8bbd0; padding: 15px 0; display: flex; justify-content: space-between; align-items: center; }
-        .done { text-decoration: line-through; color: #bdbdbd; }
-        .controls button { border: none; padding: 5px 10px; border-radius: 8px; cursor: pointer; color: white; margin-left: 5px; }
+        
+        input { width: 100%; padding: 10px; margin: 5px 0; border-radius: 12px; border: 1px solid #f8bbd0; box-sizing: border-box; outline: none; transition: 0.3s; }
+        
+        .input-error {
+            border: 2px solid #ff1744 !important;
+            background-color: #ffebee;
+            animation: shake 0.4s ease-in-out;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+            100% { transform: translateX(0); }
+        }
+
+        .add-btn { width: 100%; background: #ec407a; color: white; border: none; padding: 12px; border-radius: 20px; cursor: pointer; margin-top: 10px; font-weight: bold; transition: 0.3s; }
+        .add-btn:hover { background: #d81b60; }
+        
+        #list { margin-top: 20px; }
+        .task { background: #fff5f8; border: 1px solid #fce4ec; padding: 15px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .task-info b { color: #880e4f; display: block; }
+        .task-info small { color: #ad1457; }
+        .done { opacity: 0.5; }
+        .done b { text-decoration: line-through; }
+        .controls { display: flex; gap: 5px; }
+        .btn { border: none; padding: 8px; border-radius: 10px; cursor: pointer; color: white; font-size: 14px; }
         .done-btn { background: #66bb6a; }
         .del-btn { background: #ef5350; }
     </style>
@@ -19,52 +42,95 @@
 <body>
     <div class="app">
         <h2>Tasks List 🎀</h2>
-        <input id="t" placeholder="Что нужно сделать?">
-        <input id="d" placeholder="Описание">
-        <button class="add-btn" onclick="add()">Добавить котика 🐾</button>
+        <input id="t" type="text" placeholder="Что нужно сделать?">
+        <input id="d" type="text" placeholder="Описание (необязательно)">
+        <button class="add-btn" onclick="add()">Добавить в список 🐾</button>
+        
         <div id="list"></div>
+        
+        <div style="text-align:center; margin-top:20px;">
+            <a href="/metrics" target="_blank" style="color:#d81b60; font-size:12px; text-decoration:none;">📊 Метрики сервера</a>
+        </div>
     </div>
+
     <script>
-        const API = "/tasks";
+        const API = "http://localhost:8081/tasks";
+        
         async function load() {
-            const r = await fetch(API);
-            const tasks = await r.json();
-            document.getElementById('list').innerHTML = tasks.map(t => `
-                <div class="task">
-                    <div class="${t.status === 'done' ? 'done' : ''}">
-                        <b>${t.title}</b><br><small>${t.description}</small>
+            try {
+                const response = await fetch(API);
+                if (!response.ok) throw new Error("Нет связи");
+                const tasks = await response.json();
+                const listDiv = document.getElementById('list');
+                
+                if (tasks.length === 0) {
+                    listDiv.innerHTML = "<p style='text-align:center; color:#999;'>Список пуст 🌸</p>";
+                    return;
+                }
+
+                listDiv.innerHTML = tasks.map(t => `
+                    <div class="task ${t.status === 'done' ? 'done' : ''}">
+                        <div class="task-info">
+                            <b>#${t.id} ${t.title}</b>
+                            <small>${t.description || '...'}</small>
+                        </div>
+                        <div class="controls">
+                            <button class="btn done-btn" onclick="upd(${t.id}, '${t.status}')">✔</button>
+                            <button class="btn del-btn" onclick="del(${t.id})">✖</button>
+                        </div>
                     </div>
-                    <div class="controls">
-                        <button class="done-btn" onclick="upd(${t.id}, '${t.status}')">✨</button>
-                        <button class="del-btn" onclick="del(${t.id})">🌸</button>
-                    </div>
-                </div>
-            `).join('');
+                `).join('');
+            } catch (err) {
+                console.error("Ошибка:", err);
+            }
         }
-        async function add() {
-            const title = document.getElementById('t').value;
-            if(!title) return alert("Введите название!");
-            await fetch(API, {
+
+        async function add() 
+        {
+            const titleInput = document.getElementById('t');
+            const descInput = document.getElementById('d');
+           
+            titleInput.classList.remove('input-error');
+
+            const res = await fetch(API, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({title, description: document.getElementById('d').value})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    title: titleInput.value, 
+                    description: descInput.value 
+                })
             });
-            document.getElementById('t').value = '';
-            document.getElementById('d').value = '';
-            load();
+
+            if (res.ok) {
+                titleInput.value = '';
+                descInput.value = '';
+                titleInput.placeholder = "Что нужно сделать?";
+                load(); 
+            } 
+            else if (res.status === 400) {
+                titleInput.classList.add('input-error');
+                titleInput.placeholder = "Сервер сказал: НЕЛЬЗЯ ПУСТОЕ! >_<";
+                setTimeout(() => titleInput.classList.remove('input-error'), 500);
+            }
+            else {
+                alert("Неизвестная ошибка: " + res.status);
+            }
         }
-        async function upd(id, s) {
+
+        async function upd(id, currentStatus) {
             await fetch(`${API}/${id}`, {
                 method: 'PATCH',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({status: s === 'done' ? 'todo' : 'done'})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: currentStatus === 'done' ? 'todo' : 'done' })
             });
             load();
         }
+
         async function del(id) {
             await fetch(`${API}/${id}`, { method: 'DELETE' });
             load();
         }
+
         load();
     </script>
 </body>
